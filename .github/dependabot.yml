@@ -1,0 +1,79 @@
+# Dependabot Configuration for PS5 Management Server
+
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "[deps]"
+      include: "scope"
+    groups:
+      flask-ecosystem:
+        patterns:
+          - "flask*"
+      database:
+        patterns:
+          - "sqlalchemy"
+          - "alembic"
+      torrent:
+        patterns:
+          - "python-qbittorrent"
+          - "transmission-rpc"
+      http:
+        patterns:
+          - "requests"
+          - "httpx"
+          - "aiohttp"
+      ps5:
+        patterns:
+          - "psnawp"
+      utils:
+        patterns:
+          - "python-dotenv"
+          - "psutil"
+          - "watchdog"
+          - "pyyaml"
+      test:
+        patterns:
+          - "pytest*"
+          - "black"
+          - "flake8"
+          - "isort"
+          - "pre-commit"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "[deps-docker]"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "[deps-actions]"

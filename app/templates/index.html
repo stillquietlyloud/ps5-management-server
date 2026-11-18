@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-controller me-2"></i>{{ app_name }}
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/"><i class="bi bi-house me-1"></i>Dashboard</a>
+                <a class="nav-link" href="/status"><i class="bi bi-graph-up me-1"></i>Status</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#library" data-bs-toggle="tab">
+                                <i class="bi bi-collection me-2"></i>Game Library
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#torrents" data-bs-toggle="tab">
+                                <i class="bi bi-download me-2"></i>Torrent Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#actions" data-bs-toggle="tab">
+                                <i class="bi bi-activity me-2"></i>Actions & Transfers
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#settings" data-bs-toggle="tab">
+                                <i class="bi bi-gear me-2"></i>Settings
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#exploit" data-bs-toggle="tab">
+                                <i class="bi bi-shield-lock me-2"></i>Exploit Host
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="tab-content" id="mainTabs">
+                    <!-- Game Library Tab -->
+                    <div class="tab-pane fade show active" id="library" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Game Library</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button class="btn btn-sm btn-outline-primary" onclick="refreshLibrary()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                </button>
+                                <button class="btn btn-sm btn-outline-success" onclick="scanPS5()">
+                                    <i class="bi bi-search me-1"></i>Scan PS5
+                                </button>
+                                <button class="btn btn-sm btn-outline-info" onclick="downloadArtwork()">
+                                    <i class="bi bi-image me-1"></i>Download Artwork
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Filter/Search -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="gameSearch" placeholder="Search games..." onkeyup="filterGames()">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="sourceFilter" onchange="filterGames()">
+                                    <option value="">All Sources</option>
+                                    <option value="local">Local Server</option>
+                                    <option value="ps5">On PS5</option>
+                                    <option value="orbit_store">Orbit Store</option>
+                                    <option value="blackbox">BlackBox</option>
+                                    <option value="overdrive">Overdrive</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="formatFilter" onchange="filterGames()">
+                                    <option value="">All Formats</option>
+                                    <option value="pkg">PKG</option>
+                                    <option value="fpkg">FPKG</option>
+                                    <option value="exfat">EXFAT</option>
+                                    <option value="folder">Folder</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Game Grid -->
+                        <div class="row" id="gameGrid">
+                            <!-- Games will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Torrent Management Tab -->
+                    <div class="tab-pane fade" id="torrents" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Torrent Management</h1>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Add Torrent Client</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="addClientForm">
+                                            <div class="mb-3">
+                                                <label class="form-label">Client Type</label>
+                                                <select class="form-select" name="client_type" required>
+                                                    <option value="qbittorrent">qBittorrent</option>
+                                                    <option value="transmission">Transmission</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Name</label>
+                                                <input type="text" class="form-control" name="name" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Host</label>
+                                                <input type="text" class="form-control" name="host" value="http://localhost" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Port</label>
+                                                <input type="number" class="form-control" name="port" value="8080" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Username</label>
+                                                <input type="text" class="form-control" name="username">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Password</label>
+                                                <input type="password" class="form-control" name="password">
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Add Client</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Configured Clients</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="clientsTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Type</th>
+                                                <th>Host:Port</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="clientsBody">
+                                            <!-- Clients will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions & Transfers Tab -->
+                    <div class="tab-pane fade" id="actions" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Actions & Transfers</h1>
+                        </div>
+                        
+                        <ul class="nav nav-tabs" id="actionTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="activeTasksTab" data-bs-toggle="tab" data-bs-target="#activeTasks" role="tab">
+                                    <i class="bi bi-play-circle me-1"></i>Active Tasks
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="historyTab" data-bs-toggle="tab" data-bs-target="#history" role="tab">
+                                    <i class="bi bi-clock-history me-1"></i>History
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content" id="actionTabContent">
+                            <div class="tab-pane fade show active" id="activeTasks" role="tabpanel">
+                                <div class="table-responsive mt-3">
+                                    <table class="table table-hover" id="activeTasksTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Type</th>
+                                                <th>Game</th>
+                                                <th>PS5</th>
+                                                <th>Progress</th>
+                                                <th>Speed</th>
+                                                <th>ETA</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="activeTasksBody">
+                                            <!-- Active tasks will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="history" role="tabpanel">
+                                <div class="table-responsive mt-3">
+                                    <table class="table table-hover" id="historyTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Type</th>
+                                                <th>Game</th>
+                                                <th>PS5</th>
+                                                <th>Status</th>
+                                                <th>Duration</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="historyBody">
+                                            <!-- History will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings Tab -->
+                    <div class="tab-pane fade" id="settings" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Settings</h1>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">PS5 Systems</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <button class="btn btn-sm btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addPS5Modal">
+                                            <i class="bi bi-plus me-1"></i>Add PS5
+                                        </button>
+                                        <div class="table-responsive">
+                                            <table class="table table-hover" id="ps5Table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>IP Address</th>
+                                                        <th>Firmware</th>
+                                                        <th>Status</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="ps5Body">
+                                                    <!-- PS5 systems will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Server Paths</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="pathsForm">
+                                            <div class="mb-3">
+                                                <label class="form-label">Games Path</label>
+                                                <input type="text" class="form-control" id="gamesPath" readonly>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Saves Path</label>
+                                                <input type="text" class="form-control" id="savesPath" readonly>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Artwork Path</label>
+                                                <input type="text" class="form-control" id="artworkPath" readonly>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Downloads Path</label>
+                                                <input type="text" class="form-control" id="downloadsPath" readonly>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">API Keys</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="apiKeysForm">
+                                            <div class="mb-3">
+                                                <label class="form-label">IGDB Client ID</label>
+                                                <input type="text" class="form-control" name="igdb_client_id">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">IGDB Client Secret</label>
+                                                <input type="password" class="form-control" name="igdb_client_secret">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">RAWG API Key</label>
+                                                <input type="text" class="form-control" name="rawg_api_key">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">PSN NPSSO</label>
+                                                <input type="password" class="form-control" name="psn_npsso">
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Save API Keys</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Exploit Host Tab -->
+                    <div class="tab-pane fade" id="exploit" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">PS5 Exploit Host</h1>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Exploit Stack Status</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row mb-3">
+                                            <div class="col-6">
+                                                <div class="text-center p-3 bg-light rounded">
+                                                    <div class="display-4" id="nanodnsStatus">
+                                                        <i class="bi bi-circle text-secondary"></i>
+                                                    </div>
+                                                    <div>nanoDNS</div>
+                                                    <small class="text-muted" id="nanodnsDetail">Checking...</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="text-center p-3 bg-light rounded">
+                                                    <div class="display-4" id="autoloaderStatus">
+                                                        <i class="bi bi-circle text-secondary"></i>
+                                                    </div>
+                                                    <div>Autoloader</div>
+                                                    <small class="text-muted" id="autoloaderDetail">Checking...</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-grid gap-2 d-md-flex">
+                                            <button class="btn btn-success" onclick="startExploitStack()">
+                                                <i class="bi bi-play-fill me-1"></i>Start Stack
+                                            </button>
+                                            <button class="btn btn-danger" onclick="stopExploitStack()">
+                                                <i class="bi bi-stop-fill me-1"></i>Stop Stack
+                                            </button>
+                                            <button class="btn btn-info" onclick="refreshExploitStatus()">
+                                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">PS5 Setup Instructions</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <ol class="mb-0" id="setupInstructions">
+                                            <li>Loading instructions...</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Custom Payloads</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <input type="file" class="form-control" id="payloadFile" accept=".elf,.bin">
+                                </div>
+                                <button class="btn btn-primary" onclick="uploadPayload()">
+                                    <i class="bi bi-upload me-1"></i>Upload Payload
+                                </button>
+                                <div class="table-responsive mt-3">
+                                    <table class="table table-hover" id="payloadsTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Size</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="payloadsBody">
+                                            <!-- Payloads will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Add PS5 Modal -->
+    <div class="modal fade" id="addPS5Modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add PS5 System</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addPS5Form">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">IP Address</label>
+                            <input type="text" class="form-control" name="ip_address" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">FTP Port</label>
+                            <input type="number" class="form-control" name="ftp_port" value="21">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">FTP Username</label>
+                            <input type="text" class="form-control" name="ftp_username" value="ftp">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">FTP Password</label>
+                            <input type="password" class="form-control" name="ftp_password" value="ftp">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add PS5</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Detail Modal -->
+    <div class="modal fade" id="gameDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="gameModalTitle">Game Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="gameModalBody">
+                    <!-- Game details will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

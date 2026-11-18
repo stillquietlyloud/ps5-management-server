@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  ps5-manager:
+    build: .
+    container_name: ps5-management-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - DEBUG=false
+      - DATABASE_URL=sqlite:////app/data/ps5_manager.db
+      - SERVER_GAMES_PATH=/app/data/games
+      - SERVER_SAVES_PATH=/app/data/saves
+      - SERVER_ARTWORK_PATH=/app/data/artwork
+      - SERVER_DOWNLOADS_PATH=/app/data/downloads
+      # Add your API keys here or use .env file
+      # - IGDB_CLIENT_ID=
+      # - IGDB_CLIENT_SECRET=
+      # - RAWG_API_KEY=
+      # - PSN_NPSSO=
+      # - QBITTORRENT_HOST=http://qbittorrent:8080
+      # - QBITTORRENT_USER=admin
+      # - QBITTORRENT_PASS=adminadmin
+      # - TRANSMISSION_HOST=http://transmission:9091
+      # - EXPLOIT_HOST_IP=192.168.8.50
+    env_file:
+      - .env
+    networks:
+      - ps5-network
+
+  # Optional: qBittorrent
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - WEBUI_PORT=8080
+    volumes:
+      - ./data/qbittorrent/config:/config
+      - ./data/downloads:/downloads
+    networks:
+      - ps5-network
+
+  # Optional: Transmission
+  transmission:
+    image: lscr.io/linuxserver/transmission:latest
+    container_name: transmission
+    restart: unless-stopped
+    ports:
+      - "9091:9091"
+      - "51413:51413"
+      - "51413:51413/udp"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - TRANSMISSION_WEB_HOME=/transmission-web-control/
+    volumes:
+      - ./data/transmission/config:/config
+      - ./data/downloads:/downloads
+    networks:
+      - ps5-network
+
+networks:
+  ps5-network:
+    driver: bridge

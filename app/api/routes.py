@@ -1,0 +1,576 @@
+"""Main API routes."""
+from flask import Blueprint, jsonify, request
+from app.modules.ftp_module import FTPModule
+from app.modules.push_module import PushModule
+from app.modules.pull_module import PullModule
+from app.modules.save_backup_module import SaveBackupModule
+from app.modules.save_restore_module import SaveRestoreModule
+from app.modules.ppsa_module import PPSAModule
+from app.modules.artwork_module import ArtworkModule
+from app.modules.store_db_module import StoreDBModule
+from app.modules.download_module import DownloadModule
+from app.modules.convert_module import ConvertModule
+from app.modules.info_module import InfoModule
+from app.modules.exploit_module import ExploitModule
+from app.database import get_db_session
+from app.models import PS5System, Game, GameLocation, SaveGame, Task, ServiceStatus, ExploitHostConfig
+import psutil
+import os
+
+routes_bp = Blueprint("routes", __name__)
+
+
+# Initialize modules
+modules = {
+    "ftp": FTPModule(),
+    "push": PushModule(),
+    "pull": PullModule(),
+    "save_backup": SaveBackupModule(),
+    "save_restore": SaveRestoreModule(),
+    "ppsa": PPSAModule(),
+    "artwork": ArtworkModule(),
+    "store_db": StoreDBModule(),
+    "download": DownloadModule(),
+    "convert": ConvertModule(),
+    "info": InfoModule(),
+    "exploit": ExploitModule(),
+}
+
+
+# ==================== Health & Status ====================
+
+@routes_bp.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
+
+
+@routes_bp.route("/modules", methods=["GET"])
+def list_modules():
+    return jsonify({
+        name: {
+            "status": module.status.value,
+            "info": {
+                "name": module.info.name,
+                "version": module.info.version,
+                "description": module.info.description,
+            }
+        }
+        for name, module in modules.items()
+    })
+
+
+@routes_bp.route("/modules/<module_name>/health", methods=["GET"])
+def module_health(module_name):
+    module = modules.get(module_name)
+    if not module:
+        return jsonify({"error": "Module not found"}), 404
+    return jsonify(module.get_status().value)
+
+
+# ==================== PS5 Systems ====================
+
+@routes_bp.route("/ps5-systems", methods=["GET"])
+def list_ps5_systems():
+    db = get_db_session()
+    try:
+        systems = db.query(PS5System).all()
+        return jsonify([
+            {
+                "id": s.id,
+                "name": s.name,
+                "ip_address": s.ip_address,
+                "ftp_port": s.ftp_port,
+                "ftp_username": s.ftp_username,
+                "firmware_version": s.firmware_version,
+                "is_connected": s.is_connected,
+                "last_seen": s.last_seen.isoformat() if s.last_seen else None,
+                "created_at": s.created_at.isoformat(),
+            }
+            for s in systems
+        ])
+    finally:
+        db.close()
+
+
+@routes_bp.route("/ps5-systems", methods=["POST"])
+def add_ps5_system():
+    data = request.get_json()
+    db = get_db_session()
+    try:
+        system = PS5System(
+            name=data["name"],
+            ip_address=data["ip_address"],
+            ftp_port=data.get("ftp_port", 21),
+            ftp_username=data.get("ftp_username", "ftp"),
+            ftp_password=data.get("ftp_password", "ftp"),
+        )
+        db.add(system)
+        db.commit()
+        return jsonify({"id": system.id, "name": system.name}), 201
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db.close()
+
+
+@routes_bp.route("/ps5-systems/<int:system_id>", methods=["DELETE"])
+def delete_ps5_system(system_id):
+    db = get_db_session()
+    try:
+        system = db.query(PS5System).get(system_id)
+        if not system:
+            return jsonify({"error": "System not found"}), 404
+        db.delete(system)
+        db.commit()
+        return jsonify({"status": "deleted"})
+    finally:
+        db.close()
+
+
+@routes_bp.route("/ps5-systems/<int:system_id>/connect", methods=["POST"])
+def connect_ps5_system(system_id):
+    db = get_db_session()
+    try:
+        system = db.query(PS5System).get(system_id)
+        if not system:
+            return jsonify({"error": "System not found"}), 404
+        # Test FTP connection via module
+        result = modules["ftp"].connect(system)
+        if result.get("success"):
+            system.is_connected = True
+            system.last_seen = __import__("datetime").datetime.utcnow()
+            db.commit()
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+# ==================== Games ====================
+
+@routes_bp.route("/games", methods=["GET"])
+def list_games():
+    db = get_db_session()
+    try:
+        games = db.query(Game).all()
+        return jsonify([
+            {
+                "id": g.id,
+                "ppsa": g.ppsa,
+                "title_id": g.title_id,
+                "name": g.name,
+                "region": g.region,
+                "version": g.version,
+                "format": g.format.value if g.format else None,
+                "size_bytes": g.size_bytes,
+                "is_on_server": g.is_on_server,
+                "is_on_any_ps5": g.is_on_any_ps5,
+                "cover_url": g.cover_url,
+                "background_url": g.background_url,
+                "local_cover_path": g.local_cover_path,
+                "igdb_id": g.igdb_id,
+                "rawg_id": g.rawg_id,
+            }
+            for g in games
+        ])
+    finally:
+        db.close()
+
+
+@routes_bp.route("/games/<int:game_id>/locations", methods=["GET"])
+def game_locations(game_id):
+    db = get_db_session()
+    try:
+        locations = db.query(GameLocation).filter_by(game_id=game_id).all()
+        return jsonify([
+            {
+                "id": loc.id,
+                "server_path": loc.server_path,
+                "ps5_path": loc.ps5_path,
+                "ps5_storage": loc.ps5_storage.value if loc.ps5_storage else None,
+                "format": loc.format.value if loc.format else None,
+                "size_bytes": loc.size_bytes,
+                "is_installed": loc.is_installed,
+            }
+            for loc in locations
+        ])
+    finally:
+        db.close()
+
+
+# ==================== Tasks ====================
+
+@routes_bp.route("/tasks", methods=["GET"])
+def list_tasks():
+    db = get_db_session()
+    try:
+        tasks = db.query(Task).order_by(Task.created_at.desc()).limit(50).all()
+        return jsonify([
+            {
+                "id": t.id,
+                "task_type": t.task_type.value,
+                "status": t.status.value,
+                "progress": t.progress,
+                "current_file": t.current_file,
+                "error_message": t.error_message,
+                "created_at": t.created_at.isoformat(),
+                "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+            }
+            for t in tasks
+        ])
+    finally:
+        db.close()
+
+
+# ==================== Save Games ====================
+
+@routes_bp.route("/save-games", methods=["GET"])
+def list_save_games():
+    db = get_db_session()
+    try:
+        saves = db.query(SaveGame).all()
+        return jsonify([
+            {
+                "id": s.id,
+                "game_id": s.game_id,
+                "save_name": s.save_name,
+                "server_path": s.server_path,
+                "size_bytes": s.size_bytes,
+                "game_progress": s.game_progress,
+                "backed_up_at": s.backed_up_at.isoformat() if s.backed_up_at else None,
+            }
+            for s in saves
+        ])
+    finally:
+        db.close()
+
+
+# ==================== Module Actions ====================
+
+@routes_bp.route("/modules/<module_name>/action", methods=["POST"])
+def module_action(module_name):
+    """Execute an action on a module."""
+    module = modules.get(module_name)
+    if not module:
+        return jsonify({"error": "Module not found"}), 404
+    
+    data = request.get_json() or {}
+    action = data.get("action")
+    
+    # Route to specific module handlers
+    if module_name == "ftp" and action == "scan":
+        return _handle_ftp_scan(data)
+    elif module_name == "push" and action == "push":
+        return _handle_push_game(data)
+    elif module_name == "pull" and action == "pull":
+        return _handle_pull_game(data)
+    elif module_name == "save_backup" and action == "backup":
+        return _handle_save_backup(data)
+    elif module_name == "save_restore" and action == "restore":
+        return _handle_save_restore(data)
+    elif module_name == "ppsa" and action == "update":
+        return _handle_ppsa_update(data)
+    elif module_name == "artwork" and action == "download":
+        return _handle_download_artwork(data)
+    elif module_name == "store_db" and action == "update":
+        return _handle_store_db_update(data)
+    elif module_name == "download" and action == "start":
+        return _handle_download_start(data)
+    elif module_name == "convert" and action == "convert":
+        return _handle_convert(data)
+    elif module_name == "info" and action == "fetch":
+        return _handle_info_fetch(data)
+    
+    return jsonify({"error": f"Action '{action}' not supported"}), 400
+
+
+def _handle_ftp_scan(data):
+    system_id = data.get("system_id")
+    db = get_db_session()
+    try:
+        system = db.query(PS5System).get(system_id)
+        if not system:
+            return jsonify({"error": "System not found"}), 404
+        result = modules["ftp"].scan(system)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+def _handle_push_game(data):
+    system_id = data.get("system_id")
+    game_id = data.get("game_id")
+    storage = data.get("storage", "primary_ssd")
+    db = get_db_session()
+    try:
+        system = db.query(PS5System).get(system_id)
+        game = db.query(Game).get(game_id)
+        if not system or not game:
+            return jsonify({"error": "System or game not found"}), 404
+        result = modules["push"].push(system, game, storage)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+def _handle_pull_game(data):
+    system_id = data.get("system_id")
+    game_id = data.get("game_id")
+    keep_on_ps5 = data.get("keep_on_ps5", True)
+    db = get_db_session()
+    try:
+        system = db.query(PS5System).get(system_id)
+        game = db.query(Game).get(game_id)
+        if not system or not game:
+            return jsonify({"error": "System or game not found"}), 404
+        result = modules["pull"].pull(system, game, keep_on_ps5)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+def _handle_save_backup(data):
+    system_id = data.get("system_id")
+    game_id = data.get("game_id")
+    db = get_db_session()
+    try:
+        system = db.query(PS5System).get(system_id)
+        game = db.query(Game).get(game_id)
+        if not system or not game:
+            return jsonify({"error": "System or game not found"}), 404
+        result = modules["save_backup"].backup(system, game)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+def _handle_save_restore(data):
+    system_id = data.get("system_id")
+    save_id = data.get("save_id")
+    db = get_db_session()
+    try:
+        system = db.query(PS5System).get(system_id)
+        save = db.query(SaveGame).get(save_id)
+        if not system or not save:
+            return jsonify({"error": "System or save not found"}), 404
+        result = modules["save_restore"].restore(system, save)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+def _handle_ppsa_update(data):
+    system_id = data.get("system_id")
+    db = get_db_session()
+    try:
+        system = db.query(PS5System).get(system_id)
+        if not system:
+            return jsonify({"error": "System not found"}), 404
+        result = modules["ppsa"].update(system)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+def _handle_download_artwork(data):
+    game_id = data.get("game_id")
+    db = get_db_session()
+    try:
+        game = db.query(Game).get(game_id)
+        if not game:
+            return jsonify({"error": "Game not found"}), 404
+        result = modules["artwork"].download(game)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+def _handle_store_db_update(data):
+    source = data.get("source", "all")
+    result = modules["store_db"].update(source)
+    return jsonify(result)
+
+
+def _handle_download_start(data):
+    game_id = data.get("game_id")
+    source = data.get("source")
+    db = get_db_session()
+    try:
+        game = db.query(Game).get(game_id)
+        if not game:
+            return jsonify({"error": "Game not found"}), 404
+        result = modules["download"].start(game, source)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+def _handle_convert(data):
+    game_id = data.get("game_id")
+    target_format = data.get("target_format")
+    db = get_db_session()
+    try:
+        game = db.query(Game).get(game_id)
+        if not game:
+            return jsonify({"error": "Game not found"}), 404
+        result = modules["convert"].convert(game, target_format)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+def _handle_info_fetch(data):
+    game_id = data.get("game_id")
+    db = get_db_session()
+    try:
+        game = db.query(Game).get(game_id)
+        if not game:
+            return jsonify({"error": "Game not found"}), 404
+        result = modules["info"].fetch(game)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+# ==================== Exploit Module Actions ====================
+
+@routes_bp.route("/exploit/start", methods=["POST"])
+def start_exploit():
+    result = modules["exploit"].start()
+    return jsonify(result)
+
+
+@routes_bp.route("/exploit/stop", methods=["POST"])
+def stop_exploit():
+    result = modules["exploit"].stop()
+    return jsonify(result)
+
+
+@routes_bp.route("/exploit/status", methods=["GET"])
+def exploit_status():
+    result = modules["exploit"].get_status()
+    return jsonify(result)
+
+
+@routes_bp.route("/exploit/setup", methods=["GET"])
+def exploit_setup():
+    result = modules["exploit"].get_setup_instructions()
+    return jsonify(result)
+
+
+@routes_bp.route("/exploit/payloads", methods=["GET"])
+def list_payloads():
+    result = modules["exploit"].list_payloads()
+    return jsonify(result)
+
+
+@routes_bp.route("/exploit/payload", methods=["POST"])
+def upload_payload():
+    if 'payload' not in request.files:
+        return jsonify({"error": "No payload file"}), 400
+    
+    file = request.files['payload']
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+    
+    # Save to temporary location
+    import tempfile
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.elf') as tmp:
+        file.save(tmp.name)
+        result = modules["exploit"].add_payload(tmp.name, file.filename)
+    
+    return jsonify(result)
+
+
+@routes_bp.route("/exploit/payload/<name>", methods=["DELETE"])
+def delete_payload(name):
+    # This would need implementation in exploit module
+    return jsonify({"success": False, "error": "Not implemented"})
+
+
+# ==================== System Status ====================
+
+@routes_bp.route("/system/resources", methods=["GET"])
+def system_resources():
+    """Get system resource usage."""
+    cpu_percent = psutil.cpu_percent(interval=1)
+    memory = psutil.virtual_memory()
+    disk = psutil.disk_usage('/')
+    
+    # Network I/O
+    net_io = psutil.net_io_counters()
+    net_mbps = (net_io.bytes_sent + net_io.bytes_recv) / (1024 * 1024)
+    
+    return jsonify({
+        "cpu_percent": cpu_percent,
+        "memory_percent": memory.percent,
+        "memory_available": memory.available,
+        "memory_total": memory.total,
+        "disk_percent": (disk.used / disk.total) * 100,
+        "disk_free": disk.free,
+        "disk_total": disk.total,
+        "network_io_mbps": net_mbps,
+    })
+
+
+@routes_bp.route("/system/storage", methods=["GET"])
+def system_storage():
+    """Get storage info for configured paths."""
+    from config import settings
+    
+    paths = [
+        ("Games", settings.SERVER_GAMES_PATH),
+        ("Saves", settings.SERVER_SAVES_PATH),
+        ("Artwork", settings.SERVER_ARTWORK_PATH),
+        ("Downloads", settings.SERVER_DOWNLOADS_PATH),
+        ("Root", "/"),
+    ]
+    
+    result = []
+    for name, path in paths:
+        try:
+            usage = psutil.disk_usage(path)
+            result.append({
+                "name": name,
+                "path": path,
+                "total": usage.total,
+                "used": usage.used,
+                "free": usage.free,
+                "percent": (usage.used / usage.total) * 100,
+            })
+        except Exception:
+            result.append({
+                "name": name,
+                "path": path,
+                "total": 0,
+                "used": 0,
+                "free": 0,
+                "percent": 0,
+                "error": "Path not accessible",
+            })
+    
+    return jsonify(result)
+
+
+@routes_bp.route("/services/status", methods=["GET"])
+def services_status():
+    """Get service status tracking."""
+    db = get_db_session()
+    try:
+        services = db.query(ServiceStatus).all()
+        return jsonify([
+            {
+                "service_name": s.service_name,
+                "is_running": s.is_running,
+                "last_run": s.last_run.isoformat() if s.last_run else None,
+                "last_success": s.last_success.isoformat() if s.last_success else None,
+                "run_count": s.run_count,
+                "success_count": s.success_count,
+                "error_count": s.error_count,
+                "avg_duration_seconds": s.avg_duration_seconds,
+                "last_error": s.last_error,
+            }
+            for s in services
+        ])
+    finally:
+        db.close()

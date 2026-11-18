@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} - Status</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-controller me-2"></i>{{ app_name }}
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/"><i class="bi bi-house me-1"></i>Dashboard</a>
+                <a class="nav-link active" href="/status"><i class="bi bi-graph-up me-1"></i>Status</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="h2 mb-4">Service Status & Health</h1>
+            </div>
+        </div>
+
+        <!-- Module Health Cards -->
+        <div class="row mb-4" id="moduleHealthCards">
+            <!-- Module health cards will be loaded here -->
+        </div>
+
+        <!-- Service Status Table -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Service Status Tracking</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="serviceStatusTable">
+                                <thead>
+                                    <tr>
+                                        <th>Service</th>
+                                        <th>Status</th>
+                                        <th>Last Run</th>
+                                        <th>Last Success</th>
+                                        <th>Run Count</th>
+                                        <th>Success Rate</th>
+                                        <th>Avg Duration</th>
+                                        <th>Last Error</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="serviceStatusBody">
+                                    <!-- Service status will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Resources -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Server Resources</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="h3" id="cpuUsage">--%</div>
+                                <small class="text-muted">CPU Usage</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="h3" id="memoryUsage">--%</div>
+                                <small class="text-muted">Memory Usage</small>
+                            </div>
+                        </div>
+                        <div class="row text-center mt-3">
+                            <div class="col-6">
+                                <div class="h3" id="diskUsage">--%</div>
+                                <small class="text-muted">Disk Usage</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="h3" id="networkIO">-- MB/s</div>
+                                <small class="text-muted">Network I/O</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Storage Paths</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm" id="storageTable">
+                                <thead>
+                                    <tr>
+                                        <th>Path</th>
+                                        <th>Total</th>
+                                        <th>Used</th>
+                                        <th>Free</th>
+                                        <th>Usage</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="storageBody">
+                                    <!-- Storage info will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PS5 Connections -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">PS5 Connections</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="ps5ConnectionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>IP Address</th>
+                                        <th>Firmware</th>
+                                        <th>Connected</th>
+                                        <th>Last Seen</th>
+                                        <th>Games</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ps5ConnectionsBody">
+                                    <!-- PS5 connections will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Tasks -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Recent Tasks</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="recentTasksTable">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Type</th>
+                                        <th>Game</th>
+                                        <th>PS5</th>
+                                        <th>Status</th>
+                                        <th>Duration</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentTasksBody">
+                                    <!-- Recent tasks will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/status.js"></script>
+</body>
+</html>
