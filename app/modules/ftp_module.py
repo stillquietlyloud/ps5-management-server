@@ -289,16 +289,26 @@ class FTPModule(BaseModule):
     def _get_storage_location(self, path: str) -> Optional[PS5StorageLocation]:
         """Determine storage location from path."""
         path_lower = path.lower()
-        if '/mnt/usb2' in path_lower:
+        if '/mnt/usb7' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_7
+        elif '/mnt/usb6' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_6
+        elif '/mnt/usb5' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_5
+        elif '/mnt/usb4' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_4
+        elif '/mnt/usb3' in path_lower:
             return PS5StorageLocation.EXTERNAL_USB_3
-        elif '/mnt/usb1' in path_lower:
+        elif '/mnt/usb2' in path_lower:
             return PS5StorageLocation.EXTERNAL_USB_2
+        elif '/mnt/usb1' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_1
         elif '/mnt/usb0' in path_lower:
-            return PS5StorageLocation.EXTERNAL_USB
-        elif '/data/app0' in path_lower:
-            return PS5StorageLocation.SECONDARY_SSD
-        elif '/data/app' in path_lower:
-            return PS5StorageLocation.PRIMARY_SSD
+            return PS5StorageLocation.EXTERNAL_USB_0
+        elif '/mnt/pfs' in path_lower:
+            return PS5StorageLocation.MNT_PFS
+        elif '/user/app' in path_lower:
+            return PS5StorageLocation.USER_APP
         return None
     
     def _update_database(self, found_games: List[Dict], system: PS5System, db) -> None:

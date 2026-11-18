@@ -14,11 +14,16 @@ Base = declarative_base()
 
 class PS5StorageLocation(str, Enum):
     """PS5 storage locations."""
-    PRIMARY_SSD = "primary_ssd"
-    SECONDARY_SSD = "secondary_ssd"
-    EXTERNAL_USB = "external_usb"
-    EXTERNAL_USB_2 = "external_usb_2"
-    EXTERNAL_USB_3 = "external_usb_3"
+    USER_APP = "user_app"           # /user/app - Primary games location
+    EXTERNAL_USB_0 = "external_usb_0"   # /mnt/usb0
+    EXTERNAL_USB_1 = "external_usb_1"   # /mnt/usb1
+    EXTERNAL_USB_2 = "external_usb_2"   # /mnt/usb2
+    EXTERNAL_USB_3 = "external_usb_3"   # /mnt/usb3
+    EXTERNAL_USB_4 = "external_usb_4"   # /mnt/usb4
+    EXTERNAL_USB_5 = "external_usb_5"   # /mnt/usb5
+    EXTERNAL_USB_6 = "external_usb_6"   # /mnt/usb6
+    EXTERNAL_USB_7 = "external_usb_7"   # /mnt/usb7
+    MNT_PFS = "mnt_pfs"             # /mnt/pfs - Mounted game images
 
 
 class GameSource(str, Enum):

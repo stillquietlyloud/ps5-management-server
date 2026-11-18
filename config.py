@@ -66,11 +66,16 @@ class Settings:
         ]
         
         self.PS5_STORAGE_PATHS: List[str] = [
-            "/data/app",           # Primary SSD
-            "/data/app0",          # Secondary
-            "/mnt/usb0",           # External USB
-            "/mnt/usb1",           # External USB 2
-            "/mnt/usb2",           # External USB 3
+            "/user/app",           # Primary games location
+            "/mnt/usb0",           # External USB 0
+            "/mnt/usb1",           # External USB 1
+            "/mnt/usb2",           # External USB 2
+            "/mnt/usb3",           # External USB 3
+            "/mnt/usb4",           # External USB 4
+            "/mnt/usb5",           # External USB 5
+            "/mnt/usb6",           # External USB 6
+            "/mnt/usb7",           # External USB 7
+            "/mnt/pfs",            # Mounted game images
         ]
     
     def _load_env(self):
