@@ -96,57 +96,157 @@ class ArtworkModule(BaseModule):
             return {"success": False, "error": str(e)}
     
     def _download_from_igdb(self, game: Game) -> Dict[str, bool]:
-        """Download artwork from IGDB."""
+        """Download artwork from IGDB (scrape public data)."""
         results = {"cover": False, "background": False, "icon": False}
         
-        if not game.igdb_id or not settings.IGDB_CLIENT_ID or not settings.IGDB_CLIENT_SECRET:
+        if not settings.IGDB_CLIENT_ID or not settings.IGDB_CLIENT_SECRET:
             return results
         
-        # This would need proper IGDB API integration
-        # For now, return empty results
+        # Use IGDB API if keys are configured
+        try:
+            from app.modules.info_module import InfoModule
+            info_module = InfoModule()
+            token = info_module._get_igdb_token()
+            if token:
+                query = f'fields cover.url,screenshots.url; search "{game.name}"; limit 1;'
+                headers = {
+                    "Client-ID": settings.IGDB_CLIENT_ID,
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                }
+                response = self.session.post(
+                    "https://api.igdb.com/v4/games",
+                    data=query,
+                    headers=headers,
+                    timeout=10,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    if data:
+                        game_data = data[0]
+                        
+                        # Cover
+                        cover = game_data.get("cover")
+                        if cover:
+                            cover_url = f"https:{cover.get('url', '')}".replace('t_thumb', 't_cover_big')
+                            if self._save_image(cover_url, game, "cover"):
+                                results["cover"] = True
+                                game.cover_url = cover_url
+                        
+                        # Background (screenshot)
+                        screenshots = game_data.get("screenshots", [])
+                        if screenshots:
+                            bg_url = f"https:{screenshots[0].get('url', '')}".replace('t_thumb', 't_1080p')
+                            if self._save_image(bg_url, game, "background"):
+                                results["background"] = True
+                                game.background_url = bg_url
+        except Exception as e:
+            logger.debug(f"IGDB artwork download failed: {e}")
+        
         return results
     
     def _download_from_rawg(self, game: Game) -> Dict[str, bool]:
         """Download artwork from RAWG."""
         results = {"cover": False, "background": False, "icon": False}
         
-        if not game.rawg_id or not settings.RAWG_API_KEY:
+        if not settings.RAWG_API_KEY:
             return results
         
-        # This would need proper RAWG API integration
+        try:
+            url = "https://api.rawg.io/api/games"
+            params = {"key": settings.RAWG_API_KEY, "search": game.name, "page_size": 1}
+            response = self.session.get(url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                results_list = data.get("results", [])
+                
+                if results_list:
+                    game_data = results_list[0]
+                    
+                    # Background image (RAWG provides high-res backgrounds)
+                    bg = game_data.get("background_image")
+                    if bg:
+                        if self._save_image(bg, game, "background"):
+                            results["background"] = True
+                            game.background_url = bg
+                    
+                    # Cover image
+                    cover = game_data.get("background_image_additional")
+                    if cover:
+                        if self._save_image(cover, game, "cover"):
+                            results["cover"] = True
+                            game.cover_url = cover
+        except Exception as e:
+            logger.debug(f"RAWG artwork download failed: {e}")
+        
         return results
     
     def _download_from_psn(self, game: Game) -> Dict[str, bool]:
-        """Download artwork from PSN."""
+        """Download artwork from PSN Store (scrape public pages)."""
         results = {"cover": False, "background": False, "icon": False}
         
-        # PSN artwork URLs often follow patterns
-        # This would need psnawp or direct API calls
+        # Try to find game on PSN store
+        try:
+            # Use PSN store search
+            search_query = game.title_id or game.name
+            url = f"https://store.playstation.com/en-us/search/{search_query}"
+            response = self.session.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                import re
+                # Try to extract image URLs from HTML
+                # PSN store has JSON data embedded
+                json_matches = re.findall(r'"imageUrl":"([^"]+)"', response.text)
+                for img_url in json_matches[:3]:
+                    if "icon" in img_url.lower() and not results["icon"]:
+                        if self._save_image(img_url, game, "icon"):
+                            results["icon"] = True
+                    elif "cover" in img_url.lower() and not results["cover"]:
+                        if self._save_image(img_url, game, "cover"):
+                            results["cover"] = True
+                    elif ("background" in img_url.lower() or "banner" in img_url.lower()) and not results["background"]:
+                        if self._save_image(img_url, game, "background"):
+                            results["background"] = True
+        except Exception as e:
+            logger.debug(f"PSN artwork download failed: {e}")
+        
         return results
     
     def _download_from_prospero(self, game: Game) -> Dict[str, bool]:
-        """Download artwork from ProsperoPatches."""
+        """Download artwork from ProsperoPatches via web scraping."""
         results = {"cover": False, "background": False, "icon": False}
         
-        if not game.prospero_id:
+        if not game.prospero_id and not game.ppsa and not game.title_id:
             return results
         
         # Try to download from prosperopatches.com
         try:
-            url = f"https://prosperopatches.com/api/game/{game.prospero_id}/artwork"
-            response = self.session.get(url, timeout=10)
+            query = game.prospero_id or game.ppsa or game.title_id
+            url = f"https://prosperopatches.com/api/internal"
+            headers = {
+                "User-Agent": "Mozilla/5.0",
+                "Content-Type": "application/x-www-form-urlencoded",
+            }
+            data = f"action=search&query={query}"
+            response = self.session.post(url, data=data, headers=headers, timeout=10)
             
             if response.status_code == 200:
-                data = response.json()
-                if data.get("cover"):
-                    self._save_image(data["cover"], game, "cover")
-                    results["cover"] = True
-                if data.get("background"):
-                    self._save_image(data["background"], game, "background")
-                    results["background"] = True
-                if data.get("icon"):
-                    self._save_image(data["icon"], game, "icon")
-                    results["icon"] = True
+                try:
+                    data = response.json()
+                    if data.get("results"):
+                        result_data = data["results"][0]
+                        # Try to get cover image
+                        if result_data.get("cover_url"):
+                            if self._save_image(result_data["cover_url"], game, "cover"):
+                                results["cover"] = True
+                                game.cover_url = result_data["cover_url"]
+                        if result_data.get("background_url"):
+                            if self._save_image(result_data["background_url"], game, "background"):
+                                results["background"] = True
+                                game.background_url = result_data["background_url"]
+                except Exception:
+                    pass
         except Exception as e:
             logger.debug(f"Prospero artwork download failed: {e}")
         

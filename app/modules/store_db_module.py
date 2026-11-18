@@ -66,21 +66,17 @@ class StoreDBModule(BaseModule):
         }
     
     def _update_from_orbit(self) -> Dict[str, Any]:
-        """Update from Orbit Store (orbit-store-ps5)."""
+        """Update from Orbit Store (orbit-store-ps5 / orbit-play-ps5)."""
         try:
             logger.info("Updating from Orbit Store...")
             
-            # Orbit Store has a catalogue that can be fetched
-            # Based on the GitHub repo, they have a JSON catalogue
-            # URL: https://github.com/saawant12/orbit-store-ps5 - they have releases with catalogue
-            
-            # Try to fetch from their releases or API
-            catalogue_url = "https://raw.githubusercontent.com/saawant12/orbit-store-ps5/main/catalogue.json"
+            # Orbit Store's catalogue is in orbit-play-ps5 repo
+            catalogue_url = "https://raw.githubusercontent.com/saawant12/orbit-play-ps5/main/catalogue.json"
             
             response = self.session.get(catalogue_url, timeout=30)
             
             if response.status_code != 200:
-                # Try alternative URL
+                # Try alternative URL - maybe the catalogue is in releases
                 catalogue_url = "https://api.orbit-store.com/catalogue"
                 response = self.session.get(catalogue_url, timeout=30)
             
@@ -99,16 +95,25 @@ class StoreDBModule(BaseModule):
         try:
             logger.info("Updating from BlackBox...")
             
-            # BlackBox has a catalog in their repo
-            catalogue_url = "https://raw.githubusercontent.com/D3ATHLY/blackbox/main/catalog/catalogue.json"
+            # BlackBox does not host a public game catalogue
+            # It's a package installer that uses external sources
+            # Check for catalog directory
+            catalogue_urls = [
+                "https://raw.githubusercontent.com/D3ATHLY/blackbox/main/catalog/catalogue.json",
+                "https://raw.githubusercontent.com/D3ATHLY/blackbox/main/catalogue.json",
+                "https://raw.githubusercontent.com/D3ATHLY/blackbox/main/catalog/catalog.json",
+            ]
             
-            response = self.session.get(catalogue_url, timeout=30)
+            for url in catalogue_urls:
+                try:
+                    response = self.session.get(url, timeout=15)
+                    if response.status_code == 200:
+                        catalogue = response.json()
+                        return self._process_catalogue(catalogue, GameSource.BLACKBOX)
+                except Exception:
+                    continue
             
-            if response.status_code == 200:
-                catalogue = response.json()
-                return self._process_catalogue(catalogue, GameSource.BLACKBOX)
-            else:
-                return {"success": False, "error": f"Failed to fetch catalogue: {response.status_code}"}
+            return {"success": False, "error": "No public catalogue found for BlackBox"}
         
         except Exception as e:
             logger.error(f"BlackBox update failed: {e}")
@@ -119,16 +124,22 @@ class StoreDBModule(BaseModule):
         try:
             logger.info("Updating from Overdrive...")
             
-            # Overdrive has releases with game data
-            catalogue_url = "https://raw.githubusercontent.com/overdriveps5/overdrive-releases/main/catalogue.json"
+            catalogue_urls = [
+                "https://raw.githubusercontent.com/overdriveps5/overdrive-releases/main/catalogue.json",
+                "https://raw.githubusercontent.com/FermataRest/over-drive/main/catalogue.json",
+                "https://raw.githubusercontent.com/FermataRest/over-drive/main/catalog.json",
+            ]
             
-            response = self.session.get(catalogue_url, timeout=30)
+            for url in catalogue_urls:
+                try:
+                    response = self.session.get(url, timeout=15)
+                    if response.status_code == 200:
+                        catalogue = response.json()
+                        return self._process_catalogue(catalogue, GameSource.OVERDRIVE)
+                except Exception:
+                    continue
             
-            if response.status_code == 200:
-                catalogue = response.json()
-                return self._process_catalogue(catalogue, GameSource.OVERDRIVE)
-            else:
-                return {"success": False, "error": f"Failed to fetch catalogue: {response.status_code}"}
+            return {"success": False, "error": "No public catalogue found for Overdrive"}
         
         except Exception as e:
             logger.error(f"Overdrive update failed: {e}")

@@ -238,29 +238,49 @@ class InfoModule(BaseModule):
         return None
     
     def _fetch_from_prospero(self, game: Game) -> Optional[Dict[str, Any]]:
-        """Fetch game info from ProsperoPatches."""
+        """Fetch game info from ProsperoPatches via web scraping."""
         try:
-            # Search ProsperoPatches for game updates
-            url = f"https://prosperopatches.com/api/search?q={game.name}"
-            
-            response = self.session.get(url, timeout=10)
+            # Search by title ID or PPSA
+            query = game.title_id or game.ppsa or game.name
+            url = "https://prosperopatches.com/api/internal"
+            headers = {
+                "User-Agent": "Mozilla/5.0",
+                "Content-Type": "application/x-www-form-urlencoded",
+            }
+            data = f"action=search&query={query}"
+            response = self.session.post(url, data=data, headers=headers, timeout=10)
             
             if response.status_code == 200:
-                data = response.json()
-                
-                if data:
-                    game_data = data[0]
-                    
-                    result = {
-                        "prospero": {
-                            "prospero_id": game_data.get("id"),
-                            "name": game_data.get("name"),
-                            "version": game_data.get("version"),
-                            "update_available": game_data.get("update_available"),
+                try:
+                    data = response.json()
+                    if data.get("results"):
+                        result_data = data["results"][0]
+                        return {
+                            "prospero": {
+                                "prospero_id": result_data.get("id"),
+                                "name": result_data.get("title"),
+                                "description": result_data.get("description", ""),
+                            },
+                            "description": result_data.get("description", ""),
                         }
+                except Exception:
+                    pass
+            
+            # Fallback: try GET search
+            url = f"https://prosperopatches.com/search?q={query}"
+            response = self.session.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            if response.status_code == 200:
+                # Basic HTML parsing for title match
+                import re
+                title_match = re.search(r'<title>([^<]+)</title>', response.text)
+                if title_match:
+                    return {
+                        "prospero": {
+                            "prospero_id": query,
+                            "name": title_match.group(1).strip(),
+                        },
+                        "name": title_match.group(1).strip(),
                     }
-                    
-                    return result
         except Exception as e:
             logger.debug(f"Prospero fetch error: {e}")
         
@@ -325,7 +345,6 @@ class InfoModule(BaseModule):
                 if rawg_data.get("genres"):
                     game.genres = rawg_data["genres"]
                 if rawg_data.get("released"):
-                    from datetime import datetime
                     try:
                         game.release_date = datetime.strptime(rawg_data["released"], "%Y-%m-%d")
                     except:
