@@ -5,6 +5,7 @@ from flask_socketio import SocketIO
 from flask_cors import CORS
 from config import settings
 from app.database import init_db
+from config import ensure_data_directories
 
 
 # Configure logging
@@ -25,6 +26,7 @@ def create_app():
     # Initialize database
     with app.app_context():
         init_db()
+        ensure_data_directories()
         logging.info("Database initialized.")
 
     # Initialize Socket.IO

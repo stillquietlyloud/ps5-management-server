@@ -105,14 +105,17 @@ class PushModule(BaseModule):
     def _get_target_path(self, system: PS5System, storage: str, game: Game) -> str:
         """Get target path on PS5 based on storage selection."""
         storage_map = {
-            "primary_ssd": "/data/app",
-            "secondary_ssd": "/data/app0",
+            "primary_ssd": "/user/app",
+            "secondary_ssd": "/user/app0",
             "external_usb": "/mnt/usb0",
             "external_usb_2": "/mnt/usb1",
             "external_usb_3": "/mnt/usb2",
+            "external_ext1": "/mnt/ext1",
+            "external_ext2": "/mnt/ext2",
+            "external_ext3": "/mnt/ext3",
         }
         
-        base_path = storage_map.get(storage, "/data/app")
+        base_path = storage_map.get(storage, "/user/app")
         
         # Use game's folder name or create one from title_id/ppsa
         folder_name = game.title_id or game.ppsa or game.name.replace(" ", "_")

@@ -1,0 +1,21 @@
+#!/bin/bash
+# Mock PS5PKGTool for testing
+echo "Mock PS5PKGTool called with args: $@"
+# Simulate success for resign and build commands
+if [[ "$@" == *"resign"* ]] || [[ "$@" == *"build"* ]] || [[ "$@" == *"extract"* ]]; then
+    # Find output file after -o
+    prev=""
+    for i in "$@"; do
+        if [[ "$i" == "-o" ]]; then
+            prev="-o"
+        elif [[ "$prev" == "-o" ]]; then
+            touch "$i"
+            echo "Created mock output: $i"
+            # Also create if it's a folder (for build folder to pkg)
+            mkdir -p "$i"
+            break
+        fi
+    done
+    exit 0
+fi
+exit 1

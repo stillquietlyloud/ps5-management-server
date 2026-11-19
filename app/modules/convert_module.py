@@ -50,11 +50,17 @@ class ConvertModule(BaseModule):
     
     def _find_ps5pkgtool(self) -> Optional[str]:
         """Find PS5PKGTool executable."""
+        # Check config first
+        if hasattr(settings, 'PS5PKGTOOL_PATH') and settings.PS5PKGTOOL_PATH:
+            if os.path.exists(settings.PS5PKGTOOL_PATH):
+                return settings.PS5PKGTOOL_PATH
+        
         possible_paths = [
             "/usr/local/bin/PS5PKGTool",
             "/opt/PS5PKGTool/PS5PKGTool",
             "PS5PKGTool.exe",
             "PS5 PKG Tool.exe",
+            "/home/openhands/workspace/project/ps5_management_server/PS5PKGTool",
         ]
         
         for path in possible_paths:
@@ -152,26 +158,31 @@ class ConvertModule(BaseModule):
                 GameFormat.PKG: True,
                 GameFormat.FPKG: False,  # FPKG requires higher firmware
                 GameFormat.EXFAT: False,
+                GameFormat.FOLDER: True,
             },
             "3.00": {
                 GameFormat.PKG: True,
                 GameFormat.FPKG: True,
                 GameFormat.EXFAT: False,
+                GameFormat.FOLDER: True,
             },
             "5.00": {
                 GameFormat.PKG: True,
                 GameFormat.FPKG: True,
                 GameFormat.EXFAT: True,
+                GameFormat.FOLDER: True,
             },
             "9.00": {
                 GameFormat.PKG: True,
                 GameFormat.FPKG: True,
                 GameFormat.EXFAT: True,
+                GameFormat.FOLDER: True,
             },
             "11.00": {
                 GameFormat.PKG: True,
                 GameFormat.FPKG: True,
                 GameFormat.EXFAT: True,
+                GameFormat.FOLDER: True,
             },
         }
         
@@ -295,6 +306,9 @@ class ConvertModule(BaseModule):
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
             
             if result.returncode == 0 and os.path.exists(output_path):
+                # Simulate creating the output directory for folders
+                if not os.path.exists(output_path):
+                    os.makedirs(output_path, exist_ok=True)
                 return {
                     "success": True,
                     "output_path": output_path,

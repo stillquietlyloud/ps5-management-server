@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create data directories
-RUN mkdir -p /app/data/games /app/data/saves /app/data/artwork /app/data/downloads \
+RUN mkdir -p /app/data/games /app/data/saves /app/data/artwork /app/data/downloads /app/data \
     && chown -R appuser:appuser /app
 
 # Switch to non-root user

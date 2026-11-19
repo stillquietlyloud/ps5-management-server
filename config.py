@@ -62,11 +62,22 @@ class Settings:
         # File Formats
         self.SUPPORTED_GAME_FORMATS: List[str] = [
             ".pkg", ".fpkg", ".exfat", ".iso", ".bin", ".cue",
-            ".zip", ".rar", ".7z", ".tar", ".gz"
+            ".zip", ".rar", ".7z", ".tar", ".gz",
+            ".ffpfsc", ".app",  # Additional homebrew formats
         ]
         
         self.PS5_STORAGE_PATHS: List[str] = [
-            "/user/app",           # Primary games location
+            "/user/app",           # Primary games location (internal SSD)
+            "/mnt/ext1",           # External storage 1 (common homebrew location)
+            "/mnt/ext2",           # External storage 2
+            "/mnt/ext3",           # External storage 3
+            "/mnt/ext4",           # External storage 4
+            "/mnt/ext5",           # External storage 5
+            "/mnt/ext6",           # External storage 6
+            "/mnt/ext7",           # External storage 7
+            "/mnt/ext8",           # External storage 8
+            "/mnt/ext9",           # External storage 9
+            "/mnt/ext10",          # External storage 10
             "/mnt/usb0",           # External USB 0
             "/mnt/usb1",           # External USB 1
             "/mnt/usb2",           # External USB 2
@@ -95,11 +106,13 @@ class Settings:
 
 settings = Settings()
 
-# Ensure directories exist
-for path in [
-    settings.SERVER_GAMES_PATH,
-    settings.SERVER_SAVES_PATH,
-    settings.SERVER_ARTWORK_PATH,
-    settings.SERVER_DOWNLOADS_PATH,
-]:
-    Path(path).mkdir(parents=True, exist_ok=True)
+
+def ensure_data_directories():
+    """Ensure data directories exist at runtime."""
+    for path in [
+        settings.SERVER_GAMES_PATH,
+        settings.SERVER_SAVES_PATH,
+        settings.SERVER_ARTWORK_PATH,
+        settings.SERVER_DOWNLOADS_PATH,
+    ]:
+        Path(path).mkdir(parents=True, exist_ok=True)

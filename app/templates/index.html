@@ -33,6 +33,36 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" href="#homebrew-library" data-bs-toggle="tab">
+                                <i class="bi bi-box-seam me-2"></i>Homebrew Library
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#tools-library" data-bs-toggle="tab">
+                                <i class="bi bi-tools me-2"></i>Tools & Utilities
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#emulators-library" data-bs-toggle="tab">
+                                <i class="bi bi-display me-2"></i>Emulators
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#mods-library" data-bs-toggle="tab">
+                                <i class="bi bi-puzzle me-2"></i>Game Mods
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#themes-library" data-bs-toggle="tab">
+                                <i class="bi bi-palette me-2"></i>Themes
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#exploit-library" data-bs-toggle="tab">
+                                <i class="bi bi-shield-exclamation me-2"></i>Exploit Library
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" href="#torrents" data-bs-toggle="tab">
                                 <i class="bi bi-download me-2"></i>Torrent Management
                             </a>
@@ -105,6 +135,234 @@
                         <!-- Game Grid -->
                         <div class="row" id="gameGrid">
                             <!-- Games will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Homebrew Library Tab -->
+                    <div class="tab-pane fade" id="homebrew-library" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Homebrew Library</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button class="btn btn-sm btn-outline-primary" onclick="loadLibraryByType('homebrew_app')">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="homebrewSearch" placeholder="Search homebrew apps..." onkeyup="filterLibraryByType('homebrew_app')">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="homebrewSourceFilter" onchange="filterLibraryByType('homebrew_app')">
+                                    <option value="">All Sources</option>
+                                    <option value="local">Local Server</option>
+                                    <option value="ps5">On PS5</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="homebrewFormatFilter" onchange="filterLibraryByType('homebrew_app')">
+                                    <option value="">All Formats</option>
+                                    <option value="pkg">PKG</option>
+                                    <option value="fpkg">FPKG</option>
+                                    <option value="folder">Folder</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row" id="homebrewGrid">
+                            <!-- Homebrew apps will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Tools Library Tab -->
+                    <div class="tab-pane fade" id="tools-library" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Tools & Utilities</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button class="btn btn-sm btn-outline-primary" onclick="loadLibraryByType('tool')">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="toolsSearch" placeholder="Search tools..." onkeyup="filterLibraryByType('tool')">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="toolsSourceFilter" onchange="filterLibraryByType('tool')">
+                                    <option value="">All Sources</option>
+                                    <option value="local">Local Server</option>
+                                    <option value="ps5">On PS5</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="toolsFormatFilter" onchange="filterLibraryByType('tool')">
+                                    <option value="">All Formats</option>
+                                    <option value="pkg">PKG</option>
+                                    <option value="fpkg">FPKG</option>
+                                    <option value="folder">Folder</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row" id="toolsGrid">
+                            <!-- Tools will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Emulators Library Tab -->
+                    <div class="tab-pane fade" id="emulators-library" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Emulators</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button class="btn btn-sm btn-outline-primary" onclick="loadLibraryByType('emulator')">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="emulatorsSearch" placeholder="Search emulators..." onkeyup="filterLibraryByType('emulator')">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="emulatorsSourceFilter" onchange="filterLibraryByType('emulator')">
+                                    <option value="">All Sources</option>
+                                    <option value="local">Local Server</option>
+                                    <option value="ps5">On PS5</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="emulatorsFormatFilter" onchange="filterLibraryByType('emulator')">
+                                    <option value="">All Formats</option>
+                                    <option value="pkg">PKG</option>
+                                    <option value="fpkg">FPKG</option>
+                                    <option value="folder">Folder</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row" id="emulatorsGrid">
+                            <!-- Emulators will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Mods Library Tab -->
+                    <div class="tab-pane fade" id="mods-library" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Game Mods</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button class="btn btn-sm btn-outline-primary" onclick="loadLibraryByType('game_mod')">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="modsSearch" placeholder="Search mods..." onkeyup="filterLibraryByType('game_mod')">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="modsSourceFilter" onchange="filterLibraryByType('game_mod')">
+                                    <option value="">All Sources</option>
+                                    <option value="local">Local Server</option>
+                                    <option value="ps5">On PS5</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="modsFormatFilter" onchange="filterLibraryByType('game_mod')">
+                                    <option value="">All Formats</option>
+                                    <option value="pkg">PKG</option>
+                                    <option value="fpkg">FPKG</option>
+                                    <option value="folder">Folder</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row" id="modsGrid">
+                            <!-- Mods will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Themes Library Tab -->
+                    <div class="tab-pane fade" id="themes-library" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Themes</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button class="btn btn-sm btn-outline-primary" onclick="loadLibraryByType('theme')">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="themesSearch" placeholder="Search themes..." onkeyup="filterLibraryByType('theme')">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="themesSourceFilter" onchange="filterLibraryByType('theme')">
+                                    <option value="">All Sources</option>
+                                    <option value="local">Local Server</option>
+                                    <option value="ps5">On PS5</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="themesFormatFilter" onchange="filterLibraryByType('theme')">
+                                    <option value="">All Formats</option>
+                                    <option value="pkg">PKG</option>
+                                    <option value="fpkg">FPKG</option>
+                                    <option value="folder">Folder</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row" id="themesGrid">
+                            <!-- Themes will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Exploit Library Tab -->
+                    <div class="tab-pane fade" id="exploit-library" role="tabpanel">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Exploit & Homebrew Library</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button class="btn btn-sm btn-outline-primary" onclick="refreshExploitLibrary()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                </button>
+                                <button class="btn btn-sm btn-outline-success" onclick="showAddExploitModal()">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Exploit
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Filter/Search -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="exploitSearch" placeholder="Search exploits..." onkeyup="filterExploits()">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="exploitTypeFilter" onchange="filterExploits()">
+                                    <option value="">All Types</option>
+                                    <option value="homebrew_app">Homebrew App</option>
+                                    <option value="exploit_payload">Exploit Payload</option>
+                                    <option value="kernel_exploit">Kernel Exploit</option>
+                                    <option value="webkit_exploit">WebKit Exploit</option>
+                                    <option value="tool">Tool</option>
+                                    <option value="emulator">Emulator</option>
+                                    <option value="game_mod">Game Mod</option>
+                                    <option value="theme">Theme</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="exploitFirmwareFilter" onchange="filterExploits()">
+                                    <option value="">All Firmware</option>
+                                    <option value="7.00">7.00</option>
+                                    <option value="8.00">8.00</option>
+                                    <option value="9.00">9.00</option>
+                                    <option value="10.00">10.00</option>
+                                    <option value="11.00">11.00</option>
+                                    <option value="12.00">12.00</option>
+                                    <option value="13.00">13.00</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Exploit Grid -->
+                        <div class="row" id="exploitGrid">
+                            <!-- Exploits will be loaded here -->
                         </div>
                     </div>
 
@@ -290,20 +548,21 @@
                                         <form id="pathsForm">
                                             <div class="mb-3">
                                                 <label class="form-label">Games Path</label>
-                                                <input type="text" class="form-control" id="gamesPath" readonly>
+                                                <input type="text" class="form-control" id="gamesPath" placeholder="/app/data/games">
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Saves Path</label>
-                                                <input type="text" class="form-control" id="savesPath" readonly>
+                                                <input type="text" class="form-control" id="savesPath" placeholder="/app/data/saves">
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Artwork Path</label>
-                                                <input type="text" class="form-control" id="artworkPath" readonly>
+                                                <input type="text" class="form-control" id="artworkPath" placeholder="/app/data/artwork">
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Downloads Path</label>
-                                                <input type="text" class="form-control" id="downloadsPath" readonly>
+                                                <input type="text" class="form-control" id="downloadsPath" placeholder="/app/data/downloads">
                                             </div>
+                                            <button type="submit" class="btn btn-primary">Save Paths</button>
                                         </form>
                                     </div>
                                 </div>
@@ -494,6 +753,8 @@
             </div>
         </div>
     </div>
+
+    <!-- Push Game Modal (Dynamically created by JS) -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/app.js"></script>

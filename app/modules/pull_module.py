@@ -54,15 +54,35 @@ class PullModule(BaseModule):
         try:
             logger.info(f"Pulling game {game.name} from {system.name} (keep_on_ps5={keep_on_ps5})")
             
-            # Find the game location on PS5
-            ps5_location = None
+            # Find all game locations on this PS5
+            ps5_locations = []
             for loc in game.locations:
                 if loc.ps5_system_id == system.id and loc.ps5_path:
-                    ps5_location = loc
-                    break
+                    ps5_locations.append(loc)
             
-            if not ps5_location or not ps5_location.ps5_path:
+            if not ps5_locations:
                 return {"success": False, "error": "Game not found on this PS5"}
+            
+            # Select the best location to pull from:
+            # Prefer actual game files (pkg, fpkg, exfat, iso, ffpfsc) over folders
+            # These formats contain the actual game data
+            format_priority = {
+                GameFormat.FPKG: 1,
+                GameFormat.PKG: 2,
+                GameFormat.EXFAT: 3,
+                GameFormat.ISO: 4,
+                GameFormat.FFPFSC: 5,
+                GameFormat.ZIP: 6,
+                GameFormat.RAR: 7,
+                GameFormat.SEVEN_ZIP: 8,
+                GameFormat.FOLDER: 9,  # Lowest priority - often just metadata
+            }
+            
+            # Sort by priority (lower number = higher priority)
+            ps5_locations.sort(key=lambda loc: format_priority.get(loc.format, 10))
+            
+            ps5_location = ps5_locations[0]
+            logger.info(f"Selected location: {ps5_location.ps5_path} (format: {ps5_location.format})")
             
             ps5_path = ps5_location.ps5_path
             
@@ -136,12 +156,75 @@ class PullModule(BaseModule):
             total_size = 0
             files_transferred = 0
             
-            # We need to recursively list and download
-            # This is a simplified version - full implementation would need recursive FTP listing
-            logger.warning("Folder download from PS5 not fully implemented - only single file support")
-            return {"success": False, "error": "Folder download not yet implemented"}
+            # Get remote directory listing recursively
+            # We need to use the FTP module to list and download recursively
+            logger.info(f"Starting recursive folder download from {remote_path} to {local_path}")
+            
+            # Create local directory
+            os.makedirs(local_path, exist_ok=True)
+            
+            # Recursively download
+            result = self._download_folder_recursive(remote_path, local_path)
+            
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "message": f"Downloaded {result['files_transferred']} files",
+                    "bytes_transferred": result["total_size"],
+                    "local_path": local_path,
+                }
+            else:
+                return {"success": False, "error": result.get("error", "Unknown error")}
         
         except Exception as e:
+            logger.error(f"Error downloading folder: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def _download_folder_recursive(self, remote_path: str, local_path: str) -> Dict[str, Any]:
+        """Recursively download a folder from PS5 via FTP."""
+        try:
+            total_size = 0
+            files_transferred = 0
+            
+            # List remote directory
+            items = self.ftp_module.list_directory(remote_path)
+            if not items:
+                return {"success": False, "error": "Failed to list remote directory or empty"}
+            
+            for item in items:
+                if item['name'] in ['.', '..']:
+                    continue
+                
+                remote_item = f"{remote_path}/{item['name']}"
+                local_item = os.path.join(local_path, item['name'])
+                
+                if item['is_dir']:
+                    # Recursively download subdirectory
+                    os.makedirs(local_item, exist_ok=True)
+                    result = self._download_folder_recursive(remote_item, local_item)
+                    if result.get("success"):
+                        total_size += result.get("total_size", 0)
+                        files_transferred += result.get("files_transferred", 0)
+                    else:
+                        logger.warning(f"Failed to download subdirectory {remote_item}: {result.get('error')}")
+                else:
+                    # Download file
+                    success = self.ftp_module.download_file(remote_item, local_item)
+                    if success:
+                        size = os.path.getsize(local_item)
+                        total_size += size
+                        files_transferred += 1
+                    else:
+                        logger.warning(f"Failed to download file {remote_item}")
+            
+            return {
+                "success": True,
+                "files_transferred": files_transferred,
+                "total_size": total_size,
+            }
+        
+        except Exception as e:
+            logger.error(f"Error in recursive download: {e}")
             return {"success": False, "error": str(e)}
     
     def _update_database_after_pull(self, game: Game, system: PS5System, 

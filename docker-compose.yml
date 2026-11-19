@@ -8,8 +8,10 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - ./data/games:/app/data/games
+      - ./data/saves:/app/data/saves
+      - ./data/artwork:/app/data/artwork
+      - ./data/downloads:/app/data/downloads
     environment:
       - HOST=0.0.0.0
       - PORT=8080

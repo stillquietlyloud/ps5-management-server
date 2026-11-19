@@ -159,22 +159,63 @@ class DownloadModule(BaseModule):
     
     def _download_magnet(self, task: DownloadTask, magnet_link: str, db) -> None:
         """Download via magnet link using torrent client."""
-        # This would integrate with qBittorrent or Transmission
-        # For now, simulate
-        task.status = TaskStatus.RUNNING
-        task.progress = 0
-        db.commit()
-        
-        # Simulate progress
-        for i in range(0, 101, 10):
-            if self.stop_flags.get(task.id):
-                task.status = TaskStatus.CANCELLED
-                db.commit()
-                return
-            task.progress = i
-            task.downloaded_bytes = int(task.total_bytes * i / 100) if task.total_bytes else 0
+        # Get default torrent client
+        client = db.query(TorrentClient).filter_by(is_default=True, is_enabled=True).first()
+        if not client:
+            task.status = TaskStatus.FAILED
+            task.error_message = "No default torrent client configured"
             db.commit()
-            time.sleep(1)
+            return
+        
+        import requests
+        try:
+            task.status = TaskStatus.RUNNING
+            db.commit()
+            
+            if client.client_type == "qbittorrent":
+                # Add magnet to qBittorrent
+                response = requests.post(
+                    f"{client.host}:{client.port}/api/v2/torrents/add",
+                    auth=(client.username, client.password) if client.username else None,
+                    data={"urls": magnet_link, "savepath": client.download_path or task.save_path},
+                    timeout=10
+                )
+                if response.ok:
+                    task.progress = 0
+                    # We can't easily track progress without polling, so we'll set to running
+                    task.downloaded_bytes = 0
+                    db.commit()
+                else:
+                    task.status = TaskStatus.FAILED
+                    task.error_message = f"qBittorrent error: {response.text}"
+                    db.commit()
+                    
+            elif client.client_type == "transmission":
+                # Add magnet to Transmission
+                response = requests.post(
+                    f"{client.host}:{client.port}/transmission/rpc",
+                    auth=(client.username, client.password) if client.username else None,
+                    json={"method": "torrent-add", "arguments": {"filename": magnet_link, "download-dir": client.download_path or task.save_path}},
+                    timeout=10
+                )
+                if response.ok:
+                    task.progress = 0
+                    task.downloaded_bytes = 0
+                    db.commit()
+                else:
+                    task.status = TaskStatus.FAILED
+                    task.error_message = f"Transmission error: {response.text}"
+                    db.commit()
+            else:
+                task.status = TaskStatus.FAILED
+                task.error_message = "Unknown torrent client type"
+                db.commit()
+                
+        except Exception as e:
+            task.status = TaskStatus.FAILED
+            task.error_message = str(e)
+            db.commit()
+            raise
     
     def _download_torrent_hash(self, task: DownloadTask, torrent_hash: str, db) -> None:
         """Download via torrent hash."""

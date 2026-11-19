@@ -1,7 +1,9 @@
 """Module 6: Retrieve PPSSA numbers and update game database."""
 import os
 import re
+import csv
 import logging
+import requests
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from app.modules.base import BaseModule, ModuleInfo, ModuleStatus
@@ -20,6 +22,23 @@ class PPSAModule(BaseModule):
     def __init__(self, config: Dict[str, Any] = None):
         super().__init__(config)
         self.ftp_module = FTPModule()
+        self.ppsa_database = {}  # PPSA -> Game Name mapping
+        self._load_ppsa_csv()
+    
+    def _load_ppsa_csv(self):
+        """Load PPSA database from CSV file."""
+        csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'ppsa.csv')
+        try:
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    ppsa = row.get('PPSA_Number', '').strip().upper()
+                    name = row.get('Game_Name', '').strip()
+                    if ppsa and name:
+                        self.ppsa_database[ppsa] = name
+            logger.info(f"Loaded {len(self.ppsa_database)} PPSA entries from CSV")
+        except Exception as e:
+            logger.warning(f"Could not load PPSA CSV: {e}")
     
     @property
     def info(self) -> ModuleInfo:
@@ -70,7 +89,7 @@ class PPSAModule(BaseModule):
             for loc in locations:
                 game = db.query(Game).get(loc.game_id)
                 if game:
-                    result = self._extract_and_update_ppsa(game, loc)
+                    result = self._extract_and_update_ppsa(game, loc, db)
                     if result.get("success"):
                         updated += 1
                     else:
@@ -86,7 +105,7 @@ class PPSAModule(BaseModule):
         finally:
             db.close()
     
-    def _extract_and_update_ppsa(self, game: Game, location: GameLocation) -> Dict[str, Any]:
+    def _extract_and_update_ppsa(self, game: Game, location: GameLocation, db) -> Dict[str, Any]:
         """Extract PPSA from game file/folder and update database."""
         try:
             ppsa = None
@@ -277,3 +296,121 @@ class PPSAModule(BaseModule):
         
         finally:
             db.close()
+
+    def lookup_ppsa_online(self, ppsa: str) -> Optional[str]:
+        """Look up game name for a PPSA from online sources."""
+        ppsa = ppsa.upper()
+        
+        # First check local CSV database
+        if ppsa in self.ppsa_database:
+            return self.ppsa_database[ppsa]
+        
+        # Try anyps5game.org
+        try:
+            url = f"https://anyps5game.org/games/ppsa/{ppsa}"
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                # Parse HTML for game name
+                import re
+                # Try to extract title from page
+                title_match = re.search(r'<title[^>]*>([^<]+)</title>', response.text, re.IGNORECASE)
+                if title_match:
+                    title = title_match.group(1).strip()
+                    # Clean up common suffixes
+                    title = re.sub(r'\s*\|\s*.*$', '', title)
+                    title = re.sub(r'\s*-\s*anyps5game\.org.*$', '', title, flags=re.IGNORECASE)
+                    if title and title != ppsa:
+                        return title
+        except Exception as e:
+            logger.debug(f"Error looking up {ppsa} on anyps5game.org: {e}")
+        
+        # Try PS5 Game Database API if available
+        try:
+            # This is a placeholder for other potential APIs
+            pass
+        except Exception:
+            pass
+        
+        return None
+    
+    def enrich_game_with_ppsa(self, game: Game, db) -> Dict[str, Any]:
+        """Enrich a game with PPSA information from all sources."""
+        updated = False
+        ppsa = game.ppsa
+        name = game.name
+        
+        # If game has PPSA but no name, look it up
+        if ppsa and not name:
+            found_name = self.lookup_ppsa_online(ppsa)
+            if found_name:
+                game.name = found_name
+                updated = True
+        
+        # If game has name but no PPSA, try to find PPSA
+        if not ppsa and name:
+            # Try to extract from name/locations
+            for loc in game.locations:
+                if loc.ps5_path:
+                    extracted = self._extract_ppsa_from_name(loc.ps5_path)
+                    if extracted:
+                        # Check if PPSA is already in use by another game
+                        existing = db.query(Game).filter_by(ppsa=extracted).first()
+                        if not existing or existing.id == game.id:
+                            game.ppsa = extracted
+                            ppsa = extracted
+                            updated = True
+                        break
+                elif loc.server_path:
+                    extracted = self._extract_ppsa_from_name(loc.server_path)
+                    if extracted:
+                        # Check if PPSA is already in use by another game
+                        existing = db.query(Game).filter_by(ppsa=extracted).first()
+                        if not existing or existing.id == game.id:
+                            game.ppsa = extracted
+                            ppsa = extracted
+                            updated = True
+                        break
+        
+        # If we found a PPSA, look up name
+        if ppsa and not game.name:
+            found_name = self.lookup_ppsa_online(ppsa)
+            if found_name:
+                game.name = found_name
+                updated = True
+        
+        if updated:
+            game.updated_at = datetime.utcnow()
+        
+        return {"success": True, "updated": updated, "ppsa": game.ppsa, "name": game.name}
+    
+    def enrich_all_games(self) -> Dict[str, Any]:
+        """Enrich all games with PPSA information."""
+        db = get_db_session()
+        try:
+            games = db.query(Game).all()
+            updated = 0
+            for game in games:
+                result = self.enrich_game_with_ppsa(game, db)
+                if result.get("updated"):
+                    updated += 1
+            db.commit()
+            return {"success": True, "games_processed": len(games), "updated": updated}
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error enriching games: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            db.close()
+    
+    def get_ppsa_database(self) -> Dict[str, str]:
+        """Get the loaded PPSA database."""
+        return self.ppsa_database.copy()
+    
+    def search_ppsa(self, query: str) -> List[Dict[str, str]]:
+        """Search PPSA database by game name or PPSA number."""
+        query = query.upper()
+        results = []
+        for ppsa, name in self.ppsa_database.items():
+            if query in ppsa or query in name.upper():
+                results.append({"ppsa": ppsa, "name": name})
+        return results

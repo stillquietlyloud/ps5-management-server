@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
 from app.modules.base import BaseModule, ModuleInfo, ModuleStatus
-from app.models import PS5System, Game, GameLocation, GameFormat, PS5StorageLocation
+from app.models import PS5System, Game, GameLocation, GameFormat, PS5StorageLocation, GameType
 from app.database import get_db_session
 from config import settings
 
@@ -127,9 +127,13 @@ class FTPModule(BaseModule):
             self.disconnect()
             return {"success": False, "error": str(e)}
     
-    def _scan_path(self, path: str, system: PS5System) -> List[Dict[str, Any]]:
-        """Scan a specific path for game files."""
+    def _scan_path(self, path: str, system: PS5System, depth: int = 0) -> List[Dict[str, Any]]:
+        """Scan a specific path for game files recursively."""
         games = []
+        
+        # Limit recursion depth to avoid infinite loops
+        if depth > 5:
+            return games
         
         try:
             # Try to change to the path
@@ -159,10 +163,14 @@ class FTPModule(BaseModule):
                 full_path = f"{current_path}/{name}"
                 
                 if permissions.startswith('d'):
-                    # Directory - could be a game folder
+                    # Directory - check if it's a game folder
                     game_info = self._analyze_game_folder(full_path, system)
                     if game_info:
                         games.append(game_info)
+                    else:
+                        # Not a game folder, recurse into it (but limit depth)
+                        subdir_games = self._scan_path(full_path, system, depth + 1)
+                        games.extend(subdir_games)
                 else:
                     # File - check if it's a game file
                     game_info = self._analyze_game_file(full_path, name, system)
@@ -178,7 +186,9 @@ class FTPModule(BaseModule):
         """Analyze a file to determine if it's a game file."""
         # Check file extension
         ext = Path(filename).suffix.lower()
+        filename_lower = filename.lower()
         
+        # Extended format map with additional homebrew formats
         format_map = {
             '.pkg': GameFormat.PKG,
             '.fpkg': GameFormat.FPKG,
@@ -189,9 +199,18 @@ class FTPModule(BaseModule):
             '.7z': GameFormat.SEVEN_ZIP,
             '.tar': GameFormat.TAR,
             '.gz': GameFormat.GZ,
+            '.ffpfsc': GameFormat.FFPFSC,
         }
         
         game_format = format_map.get(ext)
+        
+        # Also check for special file names that indicate game formats
+        if not game_format:
+            if 'ffpfsc' in filename_lower:
+                game_format = GameFormat.FFPFSC
+            elif filename_lower.endswith('.app') or 'ps5app' in filename_lower:
+                game_format = GameFormat.PS5_APP
+        
         if not game_format:
             return None
         
@@ -206,6 +225,9 @@ class FTPModule(BaseModule):
         ppsa = self._extract_ppsa(filename)
         title_id = self._extract_title_id(filename)
         
+        # Determine game type based on PPSA and other indicators
+        game_type = self._classify_game_type(filename_lower, ppsa, game_format)
+        
         # Determine storage location
         storage = self._get_storage_location(full_path)
         
@@ -216,9 +238,58 @@ class FTPModule(BaseModule):
             "size_bytes": size,
             "ppsa": ppsa,
             "title_id": title_id,
+            "game_type": game_type.value,
             "storage": storage.value if storage else None,
             "is_folder": False,
         }
+    
+    def _classify_game_type(self, filename_lower: str, ppsa: Optional[str], game_format: GameFormat) -> GameType:
+        """Classify game type based on filename, PPSA, and format."""
+        # If it has a PPSA, it's a commercial game
+        if ppsa:
+            return GameType.GAME
+        
+        # Check for homebrew/application indicators
+        homebrew_indicators = ['homebrew', 'brew', 'retroarch', 'ppsspp', 'duckstation', 'melonds', 'mugen', 'scummvm']
+        exploit_indicators = ['exploit', 'payload', 'kernel', 'webkit', 'hen', 'jailbreak', 'elfloader']
+        tool_indicators = ['tool', 'utility', 'manager', 'dumper', 'extractor', 'converter', 'ftp', 'server']
+        emulator_indicators = ['emu', 'retroarch', 'ppsspp', 'duckstation', 'melonds', 'mugen', 'scummvm', 'citra', 'ryujinx']
+        mod_indicators = ['mod', 'patch', 'cheat', 'trainer', 'save_wizard']
+        theme_indicators = ['theme', 'skin', 'wallpaper', 'icon', 'boot', 'splash']
+        
+        for indicator in exploit_indicators:
+            if indicator in filename_lower:
+                return GameType.EXPLOIT
+        
+        for indicator in emulator_indicators:
+            if indicator in filename_lower:
+                return GameType.EMULATOR
+        
+        for indicator in tool_indicators:
+            if indicator in filename_lower:
+                return GameType.TOOL
+        
+        for indicator in homebrew_indicators:
+            if indicator in filename_lower:
+                return GameType.HOMEBREW_APP
+        
+        for indicator in mod_indicators:
+            if indicator in filename_lower:
+                return GameType.GAME_MOD
+        
+        for indicator in theme_indicators:
+            if indicator in filename_lower:
+                return GameType.THEME
+        
+        # If it's an ELF/BIN/SELF, likely an exploit or homebrew
+        if game_format in [GameFormat.PS5_APP]:
+            return GameType.HOMEBREW_APP
+        
+        # Default to GAME for PKG/FPKG without PPSA (could be region-free games)
+        if game_format in [GameFormat.PKG, GameFormat.FPKG]:
+            return GameType.GAME
+        
+        return GameType.OTHER
     
     def _analyze_game_folder(self, full_path: str, system: PS5System) -> Optional[Dict[str, Any]]:
         """Analyze a folder to determine if it's a game folder."""
@@ -232,6 +303,8 @@ class FTPModule(BaseModule):
             has_eboot = False
             has_param = False
             has_pfs = False
+            has_game_files = False
+            game_file_format = None
             
             for line in files:
                 parts = line.split()
@@ -244,21 +317,59 @@ class FTPModule(BaseModule):
                     has_param = True
                 if 'sce_sys' in name or 'pfs' in name:
                     has_pfs = True
+                # Check for game files inside folder
+                if any(name.endswith(ext) for ext in ['.pkg', '.fpkg', '.exfat', '.iso', '.ffpfsc']):
+                    has_game_files = True
+                    if name.endswith('.fpkg'):
+                        game_file_format = GameFormat.FPKG
+                    elif name.endswith('.pkg'):
+                        game_file_format = GameFormat.PKG
+                    elif name.endswith('.exfat'):
+                        game_file_format = GameFormat.EXFAT
+                    elif name.endswith('.iso'):
+                        game_file_format = GameFormat.ISO
+                    elif name.endswith('.ffpfsc'):
+                        game_file_format = GameFormat.FFPFSC
             
-            if has_eboot or has_param or has_pfs:
+            # Also consider folders with "homebrew" in path or folders that contain many game files
+            folder_name_lower = os.path.basename(full_path).lower()
+            path_lower = full_path.lower()
+            is_homebrew = 'homebrew' in path_lower or 'homebrew' in folder_name_lower
+            
+            # Skip obvious container/parent folders that are not individual games
+            # These are typically organizing folders, not actual game installations
+            skip_folders = ['homebrew', 'downloads', 'extracted', 'packages', 'games', 'apps', 'tools']
+            if folder_name_lower in skip_folders:
+                return None
+            
+            # A folder is a game folder if it has:
+            # 1. Standard PS4/PS5 indicators (eboot, param.sfo, sce_sys)
+            # 2. Contains game files directly
+            # 3. Is NOT just a container folder
+            if has_eboot or has_param or has_pfs or has_game_files:
                 # This looks like a game folder
                 folder_name = os.path.basename(full_path)
                 ppsa = self._extract_ppsa(folder_name)
                 title_id = self._extract_title_id(folder_name)
                 storage = self._get_storage_location(full_path)
                 
+                # Calculate folder size recursively
+                size = self._calculate_folder_size(full_path)
+                
+                # Use detected format or default to FOLDER
+                format_value = game_file_format.value if game_file_format else GameFormat.FOLDER.value
+                
+                # Determine game type
+                game_type = self._classify_game_type(folder_name_lower, ppsa, game_file_format or GameFormat.FOLDER)
+                
                 return {
                     "path": full_path,
                     "filename": folder_name,
-                    "format": GameFormat.FOLDER.value,
-                    "size_bytes": 0,  # Would need recursive size calculation
+                    "format": format_value,
+                    "size_bytes": size,
                     "ppsa": ppsa,
                     "title_id": title_id,
+                    "game_type": game_type.value,
                     "storage": storage.value if storage else None,
                     "is_folder": True,
                 }
@@ -267,6 +378,41 @@ class FTPModule(BaseModule):
             logger.debug(f"Error analyzing folder {full_path}: {e}")
         
         return None
+    
+    def _calculate_folder_size(self, path: str) -> int:
+        """Calculate total size of a folder recursively."""
+        try:
+            total_size = 0
+            self._connection.cwd(path)
+            files = []
+            self._connection.retrlines('LIST', files.append)
+            
+            for line in files:
+                parts = line.split()
+                if len(parts) < 9:
+                    continue
+                name = ' '.join(parts[8:])
+                if name in ['.', '..']:
+                    continue
+                
+                full_item = f"{path}/{name}"
+                permissions = parts[0]
+                
+                if permissions.startswith('d'):
+                    # Recursively calculate subdirectory size
+                    total_size += self._calculate_folder_size(full_item)
+                else:
+                    # File - get size
+                    try:
+                        size = self._connection.size(full_item)
+                        total_size += size
+                    except Exception:
+                        pass
+            
+            return total_size
+        except Exception as e:
+            logger.debug(f"Error calculating size for {path}: {e}")
+            return 0
     
     def _extract_ppsa(self, name: str) -> Optional[str]:
         """Extract PPSA number from filename/foldername."""
@@ -289,7 +435,29 @@ class FTPModule(BaseModule):
     def _get_storage_location(self, path: str) -> Optional[PS5StorageLocation]:
         """Determine storage location from path."""
         path_lower = path.lower()
-        if '/mnt/usb7' in path_lower:
+        # External storage (common on homebrew PS5s)
+        if '/mnt/ext10' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_10
+        elif '/mnt/ext9' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_9
+        elif '/mnt/ext8' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_8
+        elif '/mnt/ext7' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_7
+        elif '/mnt/ext6' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_6
+        elif '/mnt/ext5' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_5
+        elif '/mnt/ext4' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_4
+        elif '/mnt/ext3' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_3
+        elif '/mnt/ext2' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_2
+        elif '/mnt/ext1' in path_lower:
+            return PS5StorageLocation.EXTERNAL_USB_1
+        # USB storage
+        elif '/mnt/usb7' in path_lower:
             return PS5StorageLocation.EXTERNAL_USB_7
         elif '/mnt/usb6' in path_lower:
             return PS5StorageLocation.EXTERNAL_USB_6
@@ -329,11 +497,18 @@ class FTPModule(BaseModule):
                     ppsa=game_data.get("ppsa"),
                     title_id=game_data.get("title_id"),
                     name=game_data.get("filename", "Unknown"),
+                    game_type=GameType(game_data.get("game_type", GameType.GAME.value)),
                     format=GameFormat(game_data.get("format", GameFormat.UNKNOWN.value)),
                     size_bytes=game_data.get("size_bytes", 0),
                 )
                 db.add(game)
                 db.flush()
+            else:
+                # Update existing game with new info
+                if game_data.get("size_bytes") and game_data["size_bytes"] > 0:
+                    game.size_bytes = game_data["size_bytes"]
+                if game_data.get("format"):
+                    game.format = GameFormat(game_data.get("format", GameFormat.UNKNOWN.value))
             
             # Update game availability
             game.is_on_any_ps5 = True

@@ -23,6 +23,9 @@ class PS5StorageLocation(str, Enum):
     EXTERNAL_USB_5 = "external_usb_5"   # /mnt/usb5
     EXTERNAL_USB_6 = "external_usb_6"   # /mnt/usb6
     EXTERNAL_USB_7 = "external_usb_7"   # /mnt/usb7
+    EXTERNAL_USB_8 = "external_usb_8"   # /mnt/ext8
+    EXTERNAL_USB_9 = "external_usb_9"   # /mnt/ext9
+    EXTERNAL_USB_10 = "external_usb_10" # /mnt/ext10
     MNT_PFS = "mnt_pfs"             # /mnt/pfs - Mounted game images
 
 
@@ -49,7 +52,22 @@ class GameFormat(str, Enum):
     SEVEN_ZIP = "7z"
     TAR = "tar"
     GZ = "gz"
+    # Additional formats for homebrew PS5
+    FFPFSC = "ffpfsc"      # FFPFSC format
+    PS5_APP = "ps5_app"    # PS5 app format
     UNKNOWN = "unknown"
+
+
+class GameType(str, Enum):
+    """Game/Application type classification."""
+    GAME = "game"                    # Commercial games (have PPSA)
+    HOMEBREW_APP = "homebrew_app"    # Homebrew applications
+    EXPLOIT = "exploit"              # Exploit payloads
+    TOOL = "tool"                    # Tools/utilities
+    EMULATOR = "emulator"            # Emulators
+    GAME_MOD = "game_mod"            # Game mods
+    THEME = "theme"                  # Themes
+    OTHER = "other"                  # Other
 
 
 class TaskStatus(str, Enum):
@@ -106,6 +124,7 @@ class Game(Base):
     ppsa = Column(String(20), unique=True, index=True, nullable=True)  # PPSA number
     title_id = Column(String(20), unique=True, index=True, nullable=True)  # e.g., CUSA00001
     name = Column(String(200), nullable=False, index=True)
+    game_type = Column(SQLEnum(GameType), default=GameType.GAME, index=True, nullable=False)
     region = Column(String(10))
     version = Column(String(20))
     required_firmware = Column(String(20))
@@ -343,3 +362,56 @@ class ExploitHostConfig(Base):
     is_active = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ExploitPackageType(str, Enum):
+    """Types of exploit/homebrew packages."""
+    HOMEBREW_APP = "homebrew_app"       # Homebrew applications
+    EXPLOIT_PAYLOAD = "exploit_payload" # Exploit payloads (ELF/JS)
+    KERNEL_EXPLOIT = "kernel_exploit"   # Kernel exploits
+    WEBKIT_EXPLOIT = "webkit_exploit"   # WebKit exploits
+    TOOL = "tool"                       # Tools/utilities
+    EMULATOR = "emulator"               # Emulators
+    GAME_MOD = "game_mod"               # Game mods/cheats
+    THEME = "theme"                     # Themes
+    OTHER = "other"                     # Other
+
+
+class ExploitPackage(Base):
+    """Exploit/homebrew packages (separate from games)."""
+    __tablename__ = "exploit_packages"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False, index=True)
+    package_type = Column(SQLEnum(ExploitPackageType), default=ExploitPackageType.OTHER)
+    version = Column(String(50))
+    author = Column(String(100))
+    description = Column(Text)
+    supported_firmware = Column(String(200))  # e.g., "7.00-11.00"
+    format = Column(SQLEnum(GameFormat), default=GameFormat.UNKNOWN)
+    size_bytes = Column(Integer, default=0)
+    
+    # Source info
+    source_url = Column(String(500))
+    download_url = Column(String(500))
+    github_repo = Column(String(200))
+    
+    # Artwork
+    cover_url = Column(String(500))
+    local_cover_path = Column(String(500))
+    
+    # Availability
+    is_on_server = Column(Boolean, default=False)
+    server_path = Column(String(500))
+    
+    # Metadata
+    tags = Column(SQLiteJSON, default=list)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_checked = Column(DateTime)
+    
+    __table_args__ = (
+        Index('idx_exploit_name_type', 'name', 'package_type'),
+        Index('idx_exploit_firmware', 'supported_firmware'),
+    )
