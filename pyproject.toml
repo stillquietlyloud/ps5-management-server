@@ -71,7 +71,7 @@ dev = [
     "pre-commit==3.6.0",
 ]
 prod = [
-    "uvicorn==0.30.6",
+    "uvicorn==0.54.0",
 ]
 
 [tool.setuptools.packages.find]
