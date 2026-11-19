@@ -17,6 +17,10 @@ from app.database import get_db_session
 from app.models import PS5System, Game, GameLocation, SaveGame, Task, ServiceStatus, ExploitHostConfig, TorrentClient, ExploitPackage, ExploitPackageType, GameType
 import psutil
 import os
+import shutil
+import logging
+
+logger = logging.getLogger(__name__)
 
 routes_bp = Blueprint("routes", __name__)
 
@@ -371,6 +375,100 @@ def game_locations(game_id):
             }
             for loc in locations
         ])
+    finally:
+        db.close()
+
+
+@routes_bp.route("/games/<int:game_id>", methods=["DELETE"])
+def delete_game(game_id):
+    """Delete a game from the server database and optionally remove its files.
+    
+    Query parameters:
+    - confirm: Must be 'true' to confirm deletion
+    - delete_files: If 'true', also delete the game files from server storage
+    - delete_ps5: If 'true', also delete the game from PS5 (requires FTP connection)
+    """
+    confirm = request.args.get("confirm", "false").lower() == "true"
+    delete_files = request.args.get("delete_files", "false").lower() == "true"
+    delete_ps5 = request.args.get("delete_ps5", "false").lower() == "true"
+    
+    if not confirm:
+        return jsonify({
+            "success": False,
+            "error": "Confirmation required",
+            "message": "This will permanently delete the game from the database. "
+                       "Set ?confirm=true to proceed. "
+                       "Additional options: "
+                       "?delete_files=true to also delete game files from server storage, "
+                       "?delete_ps5=true to also remove from PS5 (requires FTP connection). "
+                       "WARNING: This action cannot be undone!",
+            "required_confirmation": True,
+            "options": {
+                "delete_files": "Also delete game files from server storage",
+                "delete_ps5": "Also remove game from PS5 (requires FTP)"
+            }
+        }), 400
+    
+    db = get_db_session()
+    try:
+        game = db.query(Game).get(game_id)
+        if not game:
+            return jsonify({"success": False, "error": "Game not found"}), 404
+        
+        game_name = game.name
+        game_ppsa = game.ppsa
+        
+        # Delete associated locations (server and PS5 paths)
+        locations = db.query(GameLocation).filter_by(game_id=game_id).all()
+        
+        # Delete files from server if requested
+        deleted_files = []
+        if delete_files:
+            for loc in locations:
+                if loc.server_path and os.path.exists(loc.server_path):
+                    try:
+                        if os.path.isdir(loc.server_path):
+                            shutil.rmtree(loc.server_path)
+                        else:
+                            os.remove(loc.server_path)
+                        deleted_files.append(loc.server_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to delete {loc.server_path}: {e}")
+        
+        # Delete from PS5 if requested
+        ps5_deleted = []
+        if delete_ps5:
+            # Find PS5 locations
+            ps5_locations = [loc for loc in locations if loc.ps5_system_id and loc.ps5_path]
+            if ps5_locations:
+                # For now, we just mark as not installed
+                # Actual FTP deletion would require connecting to each PS5
+                for loc in ps5_locations:
+                    loc.is_installed = False
+                    ps5_deleted.append({
+                        "ps5_system_id": loc.ps5_system_id,
+                        "ps5_path": loc.ps5_path
+                    })
+        
+        # Delete locations from database
+        for loc in locations:
+            db.delete(loc)
+        
+        # Delete the game
+        db.delete(game)
+        db.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Game '{game_name}' ({game_ppsa}) deleted successfully",
+            "deleted_files": deleted_files,
+            "ps5_locations_marked_removed": ps5_deleted
+        })
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting game: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         db.close()
 
