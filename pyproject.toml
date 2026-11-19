@@ -37,7 +37,7 @@ dependencies = [
     "alembic==1.13.1",
     
     # FTP Client
-    "pyftpdlib==1.5.7",
+    "pyftpdlib==2.2.0",
     
     # Torrent Clients
     "python-qbittorrent==0.4.2",
