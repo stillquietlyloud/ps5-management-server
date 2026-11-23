@@ -62,13 +62,13 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest==7.4.3",
-    "pytest-asyncio==0.21.1",
-    "pytest-cov==4.1.0",
-    "black==23.12.1",
-    "flake8==7.0.0",
-    "isort==5.13.2",
-    "pre-commit==3.6.0",
+    "pytest==9.2.0",
+    "pytest-asyncio==1.5.0",
+    "pytest-cov==7.1.0",
+    "black==26.10.1",
+    "flake8==7.4.1",
+    "isort==9.0.2",
+    "pre-commit==4.6.2",
 ]
 prod = [
     "uvicorn==0.30.6",
