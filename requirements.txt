@@ -5,8 +5,8 @@ flask-cors==4.0.1
 gunicorn==21.2.0
 
 # Database
-sqlalchemy==2.0.32
-alembic==1.13.1
+sqlalchemy==2.0.58
+alembic==1.20.1
 
 # FTP Client
 pyftpdlib==1.5.7
